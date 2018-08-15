@@ -1,6 +1,7 @@
 #!/usr/bin/env pYthon3
 import numpy as np
 import scipy as sp
+import scipy.stats as stats
 import scipy.stats.mstats as mstats
 import scipy.linalg as linalg
 import gig
@@ -65,11 +66,24 @@ class BLASSO_SA:
         beta = mu+b
         return(beta)
 
-    def _draw_sigma(self, Y, X, beta, T_inv, n, p, T=1):
-        raise NotImplementedError()
+    def _draw_sigma2(self, Y, X, beta, T_inv, n, p, T=1):
+        tmp = Y-X@beta
+        sigma2 = stats.invgamma(a=0.5*(n-1+p),
+                                shape=0.5*(tmp.T@tmp) + beta.T@np.diag(T_inv)@beta)
+        return(sigma2)
 
     def _draw_T_inv(self, beta, sigma2, LAMBDA, T=1):
-        raise NotImplementedError()
+        # parameters for inverse gaussian
+        mus2 = LAMBDA**2 * sigma2 / beta
+        lambdas = LAMBDA**2 * np.ones(self.p)
+
+        # parameters for generalized inverse gaussian
+        a = lambdas/mus2
+        b = lambdas/T
+        p_ = (-1.5/T +1) * np.ones(self.p)
+        
+        T_inv = self.GIG.sample(psi=a, chi=b, lambda_= p)
+        return(T_inv)
 
     @staticmethod
     def f_cool(m, T0, a):
@@ -95,7 +109,7 @@ class BLASSO_SA:
 
             T_inv = self._draw_T_inv(beta, sigma2, self.LAMBDA)
 
-            sigma2 = self._draw_sigma(
+            sigma2 = self._draw_sigma2(
                 self.Y, self.X, beta, T_inv, self.n, self.p)
 
             beta = self._draw_beta(self.Y, self.X, T_inv, sigma2)
@@ -116,7 +130,7 @@ class BLASSO_SA:
 
             T_inv = self._draw_T_inv(beta, sigma2, self.LAMBDA, T)
 
-            sigma2 = self._draw_sigma(
+            sigma2 = self._draw_sigma2(
                 self.Y, self.X, beta, T_inv, self.n, self.p, T)
 
             beta = self._draw_beta(
