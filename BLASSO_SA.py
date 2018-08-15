@@ -7,11 +7,11 @@ import warnings
 
 
 class BLASSO_SA:
-    def __init__(self, X, Y, LAMBDA, BURNIN, NITER, NITER_cd, T_0=1, T_n=0.01, gig_seed=1423):
+    def __init__(self, X, Y, LAMBDA, BURNIN, NITER, NITER_cd, T_0=1, T_n=0.01, thresh_low=0.2, gig_seed=1423):
         assert(Y.shape[1] == 1)
         assert(X.shape[0] == Y.shape[0])
         assert(LAMBDA >= 0)
-        assert(NITER > 0 and NITER_cd > 0 and T_n > 0 and T_0 > 0)
+        assert(NITER > 0 and NITER_cd > 0 and T_n > 0 and T_0 > 0 and thresh_low>0 and thresh_low<1)
 
         # TODO
         if(np.any(np.isnan(X)) or np.any(np.isnan(Y))):
@@ -30,6 +30,7 @@ class BLASSO_SA:
         self.NITER = NITER
         self.NITER_cd = NITER_cd
         self.BURNIN = BURNIN
+        self.thresh_low = thresh_low
         self.T_n = T_n
         self.T_0 = T_0
         self.X = X
@@ -44,6 +45,8 @@ class BLASSO_SA:
         # TODO proper initialization
         self.beta = np.ones(self.p)
         self.sigma2 = np.var(self.Y)
+
+        self.did_run = False
 
     def _draw_beta(self, Y, X, T_inv, sigma2, T=1):
         raise NotImplementedError()
@@ -69,7 +72,6 @@ class BLASSO_SA:
         return T0 * pow(a, m)
 
     def run(self):
-
         # init
         beta = self.beta
         sigma2 = self.sigma2
@@ -107,6 +109,9 @@ class BLASSO_SA:
             self.sig2_list[m] = sigma2
             self.T_inv_list[m, :] = T_inv
 
+        self.did_run = True
+        self.beta = self._estimate_beta(self.thresh_low)
+
         return(self)
 
     @staticmethod
@@ -135,6 +140,13 @@ class BLASSO_SA:
             self.B_list[-self.NITER_cd:, ], thresh_low)
         return(beta_est)
 
+
+    def predict(self, X):
+        assert(self.did_run)
+        assert(X.shape[1] == self.p)
+
+        y_pred = X@self.beta
+        return(y_pred)
 
 def main():
     print("In Progress :)")
