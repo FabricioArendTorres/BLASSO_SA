@@ -2,6 +2,7 @@
 import numpy as np
 import scipy as sp
 import scipy.stats.mstats as mstats
+import scipy.linalg as linalg
 import gig
 import warnings
 
@@ -11,7 +12,8 @@ class BLASSO_SA:
         assert(Y.shape[1] == 1)
         assert(X.shape[0] == Y.shape[0])
         assert(LAMBDA >= 0)
-        assert(NITER > 0 and NITER_cd > 0 and T_n > 0 and T_0 > 0 and thresh_low>0 and thresh_low<1)
+        assert(NITER > 0 and NITER_cd > 0 and T_n > 0 and T_0 >
+               0 and thresh_low > 0 and thresh_low < 1)
 
         # TODO
         if(np.any(np.isnan(X)) or np.any(np.isnan(Y))):
@@ -48,8 +50,20 @@ class BLASSO_SA:
 
         self.did_run = False
 
-    def _draw_beta(self, Y, X, T_inv, sigma2, T=1):
-        raise NotImplementedError()
+    def _draw_beta(self, Y, X, X_gram, X_Y, T_inv, sigma2, T=1):
+        A = (X_gram+T_inv)
+        L = np.linalg.cholesky(A)
+        L_T = L.T
+
+        tmp = linalg.solve_triangular(a=L, b=X_Y, lower=True)
+        mu = linalg.solve_triangular(a=L_T, b=tmp)
+
+        r = sp.random.standard_normal(size=self.p)
+        # b ~ N(0, T*sigma^2*A^-1)
+        b = linalg.solve_triangular(a=L_T, b=r/np.sqrt(T*sigma2))
+        # beta ~ N(A^-1*X'y, T*sigma^2*A^-1)
+        beta = mu+b
+        return(beta)
 
     def _draw_sigma(self, Y, X, beta, T_inv, n, p, T=1):
         raise NotImplementedError()
@@ -67,7 +81,7 @@ class BLASSO_SA:
             a {float} -- Factor of the cooling speed, 0<a<=1
 
         Returns:
-            [type] -- [description]
+            float -- Temperature at time point m
         """
         return T0 * pow(a, m)
 
@@ -91,6 +105,9 @@ class BLASSO_SA:
             self.sig2_list[m] = sigma2
             self.T_inv_list[m, :] = T_inv
 
+        X_gram = self.X.T@self.X
+        X_Y = X.T@self.Y
+
         # run sampler
         for m in range(self.NITER):
             # for the last NITER_cd iterations, leave the temperature fixed
@@ -102,7 +119,8 @@ class BLASSO_SA:
             sigma2 = self._draw_sigma(
                 self.Y, self.X, beta, T_inv, self.n, self.p, T)
 
-            beta = self._draw_beta(self.Y, self.X, T_inv, sigma2, T)
+            beta = self._draw_beta(
+                self.Y, self.X, X_gram, X_Y, T_inv, sigma2, T)
 
             # store results
             self.B_list[m, :] = beta
@@ -140,13 +158,13 @@ class BLASSO_SA:
             self.B_list[-self.NITER_cd:, ], thresh_low)
         return(beta_est)
 
-
     def predict(self, X):
         assert(self.did_run)
         assert(X.shape[1] == self.p)
 
         y_pred = X@self.beta
         return(y_pred)
+
 
 def main():
     print("In Progress :)")
