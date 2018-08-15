@@ -80,9 +80,9 @@ class BLASSO_SA:
         # parameters for generalized inverse gaussian
         a = lambdas/mus2
         b = lambdas/T
-        p_ = (-1.5/T +1) * np.ones(self.p)
-        
-        T_inv = self.GIG.sample(psi=a, chi=b, lambda_= p_)
+        p_ = (-1.5/T + 1) * np.ones(self.p)
+
+        T_inv = self.GIG.sample(psi=a, chi=b, lambda_=p_)
         return(T_inv)
 
     @staticmethod
@@ -103,7 +103,9 @@ class BLASSO_SA:
         # init
         beta = self.beta
         sigma2 = self.sigma2
-
+        X_gram = self.X.T@self.X
+        X_Y = self.X.T @ self.Y
+        
         # burnin
         for m in range(self.BURNIN):
 
@@ -112,7 +114,7 @@ class BLASSO_SA:
             sigma2 = self._draw_sigma2(
                 self.Y, self.X, beta, T_inv, self.n, self.p)
 
-            beta = self._draw_beta(self.Y, self.X, T_inv, sigma2)
+            beta = self._draw_beta(self.Y, self.X, X_gram, X_Y, T_inv, sigma2)
 
             # store results
             self.B_list[m, :] = beta
@@ -120,7 +122,7 @@ class BLASSO_SA:
             self.T_inv_list[m, :] = T_inv
 
         X_gram = self.X.T@self.X
-        X_Y = X.T@self.Y
+        X_Y = self.X.T@self.Y
 
         # run sampler
         for m in range(self.NITER):
@@ -131,7 +133,7 @@ class BLASSO_SA:
             T_inv = self._draw_T_inv(beta, sigma2, self.LAMBDA, T)
 
             sigma2 = self._draw_sigma2(
-                self.Y, self.X, beta, T_inv, self.n, self.p, T)
+                self.Y, self.X, X_gram, X_Y, T_inv, sigma2, T)
 
             beta = self._draw_beta(
                 self.Y, self.X, X_gram, X_Y, T_inv, sigma2, T)
