@@ -82,7 +82,7 @@ class BLASSO_SA:
         b = lambdas/T
         p_ = (-1.5/T +1) * np.ones(self.p)
         
-        T_inv = self.GIG.sample(psi=a, chi=b, lambda_= p)
+        T_inv = self.GIG.sample(psi=a, chi=b, lambda_= p_)
         return(T_inv)
 
     @staticmethod
