@@ -51,7 +51,7 @@ class BLASSO_SA:
         self.did_run = False
 
     def _draw_beta(self, Y, X, X_gram, X_Y, T_inv, sigma2, T=1):
-        A = (X_gram+T_inv)
+        A = (X_gram+np.diag(T_inv))
         L = np.linalg.cholesky(A)
         L_T = L.T
 
