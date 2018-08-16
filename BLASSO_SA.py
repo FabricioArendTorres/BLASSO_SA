@@ -1,4 +1,4 @@
-#!/usr/bin/env pYthon3
+#!/usr/bin/env python3
 import numpy as np
 import scipy as sp
 import scipy.stats as stats
@@ -10,7 +10,7 @@ import warnings
 
 class BLASSO_SA:
     def __init__(self, X, Y, LAMBDA, BURNIN, NITER, NITER_cd, T_0=1, T_n=0.01, thresh_low=0.2, gig_seed=1423):
-        assert(Y.shape[1] == 1)
+        assert(len(Y.shape) == 1)
         assert(X.shape[0] == Y.shape[0])
         assert(LAMBDA >= 0)
         assert(NITER > 0 and NITER_cd > 0 and T_n > 0 and T_0 >
@@ -21,8 +21,8 @@ class BLASSO_SA:
             raise NotImplementedError("NaN not supported Yet.")
 
         if(np.abs(np.mean(Y)) > 0.0001):
-            raise warnings.warn("Are You sure Y is mean free? mean(Y)={0}").format(
-                np.round(np.mean(Y), 3))
+            msg = "Are You sure Y is mean free?"
+            warnings.warn(msg)
 
         self.GIG = gig.GIG(gig_seed)
 
@@ -44,6 +44,7 @@ class BLASSO_SA:
         self.B_list = np.zeros((NITER + BURNIN, self.p))
         self.sig2_list = np.zeros((NITER + BURNIN))
         self.T_inv_list = np.zeros((NITER + BURNIN, self.p))
+        self.T_list = np.zeros(NITER)
 
         # TODO proper initialization
         self.beta = np.ones(self.p)
@@ -53,6 +54,9 @@ class BLASSO_SA:
 
     def _draw_beta(self, Y, X, X_gram, X_Y, T_inv, sigma2, T=1):
         A = (X_gram+np.diag(T_inv))
+        ## we really don't want to do this:
+        # beta = sp.random.multivariate_normal(np.linalg.inv(A)@X_Y, T*sigma2*np.linalg.inv(A))
+        
         L = np.linalg.cholesky(A)
         L_T = L.T
 
@@ -61,24 +65,28 @@ class BLASSO_SA:
 
         r = sp.random.standard_normal(size=self.p)
         # b ~ N(0, T*sigma^2*A^-1)
-        b = linalg.solve_triangular(a=L_T, b=r/np.sqrt(T*sigma2))
-        # beta ~ N(A^-1*X'y, T*sigma^2*A^-1)
+        b = linalg.solve_triangular(a=L_T, b=r*np.sqrt(T*sigma2))
+        ## Alternative: multiply with it afterwards..
+        #  b = b * np.sqrt(T*sigma2)
+        ## beta ~ N(A^-1*X'y, T*sigma^2*A^-1)
         beta = mu+b
+
         return(beta)
 
     def _draw_sigma2(self, Y, X, beta, T_inv, n, p, T=1):
-        tmp = Y-X@beta
-        sigma2 = stats.invgamma(a=0.5*(n-1+p),
-                                shape=0.5*(tmp.T@tmp) + beta.T@np.diag(T_inv)@beta)
+
+        tmp = Y-(X@beta)
+        sigma2 = stats.invgamma.rvs(a=(0.5*(n-1+p)+1)/T - 1,
+                                    scale= (0.5*(tmp.T@tmp) + beta.T@np.diag(T_inv)@beta)/T )
         return(sigma2)
 
     def _draw_T_inv(self, beta, sigma2, LAMBDA, T=1):
         # parameters for inverse gaussian
-        mus2 = LAMBDA**2 * sigma2 / beta
+        mus2 = np.abs(LAMBDA**2 * sigma2 / beta)
         lambdas = LAMBDA**2 * np.ones(self.p)
 
         # parameters for generalized inverse gaussian
-        a = lambdas/mus2
+        a = (lambdas/mus2)/T
         b = lambdas/T
         p_ = (-1.5/T + 1) * np.ones(self.p)
 
@@ -105,7 +113,7 @@ class BLASSO_SA:
         sigma2 = self.sigma2
         X_gram = self.X.T@self.X
         X_Y = self.X.T @ self.Y
-        
+
         # burnin
         for m in range(self.BURNIN):
 
@@ -133,15 +141,16 @@ class BLASSO_SA:
             T_inv = self._draw_T_inv(beta, sigma2, self.LAMBDA, T)
 
             sigma2 = self._draw_sigma2(
-                self.Y, self.X, X_gram, X_Y, T_inv, sigma2, T)
+                self.Y, self.X, beta, T_inv, self.n, self.p, T)
 
             beta = self._draw_beta(
                 self.Y, self.X, X_gram, X_Y, T_inv, sigma2, T)
 
             # store results
-            self.B_list[m, :] = beta
-            self.sig2_list[m] = sigma2
-            self.T_inv_list[m, :] = T_inv
+            self.B_list[m+self.BURNIN, :] = beta
+            self.sig2_list[m+self.BURNIN] = sigma2
+            self.T_inv_list[m+self.BURNIN, :] = T_inv
+            self.T_list[m] = T
 
         self.did_run = True
         self.beta = self._estimate_beta(self.thresh_low)
@@ -150,9 +159,9 @@ class BLASSO_SA:
 
     @staticmethod
     def estimate_from_CI(var_hist, thresh_low):
-        assert(len(var_hist.shape < 3))
+        assert(len(var_hist.shape)< 3)
 
-        if(len(var_hist.shape > 1)):
+        if(len(var_hist.shape)>1):
             p = var_hist.shape[1]
         else:
             p = 1
@@ -174,16 +183,10 @@ class BLASSO_SA:
             self.B_list[-self.NITER_cd:, ], thresh_low)
         return(beta_est)
 
-    def predict(self, X):
-        assert(self.did_run)
-        assert(X.shape[1] == self.p)
-
-        y_pred = X@self.beta
-        return(y_pred)
 
 
 def main():
-    print("In Progress :)")
+    print("This script is not intended to be executed directly :).")
 
 
 if __name__ == "__main__":
