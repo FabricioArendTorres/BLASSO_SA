@@ -19,8 +19,8 @@ We want to avoid having to directly invert A:
 
 solve for b by backward subtitution and for &#956; by forward and backward substitution.
 
-# Status
-In Progress
+# Example
+<a href="https://github.com/FabricioArendTorres/BLASSO_SA/blob/master/Diagnostics%20Artificial%20Data.ipynb">Example Jupyter Notebook</a>
 
 # References
 
