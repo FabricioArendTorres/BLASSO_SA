@@ -10,6 +10,25 @@ import warnings
 
 class BLASSO_SA:
     def __init__(self, X, Y, LAMBDA, BURNIN, NITER, NITER_cd, T_0=1, T_n=0.01, thresh_low=0.2, gig_seed=1423):
+        """Initialize the settings for the sampler.
+
+        Arguments:
+            X {ndarray} -- ndarray of the features, dim=(n,p)
+            Y {ndarray} -- ndarray of the response, dim=(n)
+            LAMBDA {float} -- sparsity parameter
+            BURNIN {int} -- Number of iterations for burnin, must be >0
+            NITER {int} -- Number of iterations for the Simulated Annealing, must be >0
+            NITER_cd {int} -- Number of iterations for the cooled down system, must be >0
+
+        Keyword Arguments:
+            T_0 {int} -- Starting temperature (default: {1})
+            T_n {float} -- Final temperature to be reached (default: {0.01})
+            thresh_low {float} -- Defines the Credible Interval that is used for thresholding. Any Beta with a [thresh_low, 1-thresh_low] CI that covers 0 is estimated as 0. (default: {0.2})
+            gig_seed {int} -- Seed for the Generalized Inverse Gaussian random sampler. (default: {1423})
+
+        Raises:
+            NotImplementedError -- [description]
+        """
         assert(len(Y.shape) == 1)
         assert(X.shape[0] == Y.shape[0])
         assert(LAMBDA >= 0)
@@ -54,9 +73,9 @@ class BLASSO_SA:
 
     def _draw_beta(self, Y, X, X_gram, X_Y, T_inv, sigma2, T=1):
         A = (X_gram+np.diag(T_inv))
-        ## we really don't want to do this:
+        # we really don't want to do this:
         # beta = sp.random.multivariate_normal(np.linalg.inv(A)@X_Y, T*sigma2*np.linalg.inv(A))
-        
+
         L = np.linalg.cholesky(A)
         L_T = L.T
 
@@ -66,9 +85,9 @@ class BLASSO_SA:
         r = sp.random.standard_normal(size=self.p)
         # b ~ N(0, T*sigma^2*A^-1)
         b = linalg.solve_triangular(a=L_T, b=r*np.sqrt(T*sigma2))
-        ## Alternative: multiply with it afterwards..
+        # Alternative: multiply with it afterwards..
         #  b = b * np.sqrt(T*sigma2)
-        ## beta ~ N(A^-1*X'y, T*sigma^2*A^-1)
+        # beta ~ N(A^-1*X'y, T*sigma^2*A^-1)
         beta = mu+b
 
         return(beta)
@@ -77,10 +96,20 @@ class BLASSO_SA:
 
         tmp = Y-(X@beta)
         sigma2 = stats.invgamma.rvs(a=(0.5*(n-1+p)+1)/T - 1,
-                                    scale= (0.5*(tmp.T@tmp) + beta.T@np.diag(T_inv)@beta)/T )
+                                    scale=(0.5*(tmp.T@tmp) + beta.T@np.diag(T_inv)@beta)/T)
         return(sigma2)
 
     def _draw_T_inv(self, beta, sigma2, LAMBDA, T=1):
+        """Draw the (Generalized) Inverse Gaussian distributed tau^-1
+
+        Arguments:
+            beta {float} -- [description]
+            sigma2 {float} -- [description]
+            LAMBDA {float} -- [description]
+
+        Keyword Arguments:
+            T {int} -- [description] (default: {1})
+        """
         # parameters for inverse gaussian
         mus2 = np.abs(LAMBDA**2 * sigma2 / beta)
         lambdas = LAMBDA**2 * np.ones(self.p)
@@ -108,6 +137,9 @@ class BLASSO_SA:
         return T0 * pow(a, m)
 
     def run(self):
+        """Run the sampler!
+        The estimated betas will be available from self.beta.
+        """
         # init
         beta = self.beta
         sigma2 = self.sigma2
@@ -159,9 +191,15 @@ class BLASSO_SA:
 
     @staticmethod
     def estimate_from_CI(var_hist, thresh_low):
-        assert(len(var_hist.shape)< 3)
+        """Estimate the parameters from their history according to their Credible Interval. If the CI covers 0, the parameter is estimated as 0. Else, the median is taken.
 
-        if(len(var_hist.shape)>1):
+        Arguments:
+            var_hist {[type]} -- [description]
+            thresh_low {[type]} -- [description]
+        """
+        assert(len(var_hist.shape) < 3)
+
+        if(len(var_hist.shape) > 1):
             p = var_hist.shape[1]
         else:
             p = 1
@@ -182,7 +220,6 @@ class BLASSO_SA:
         beta_est = BLASSO_SA.estimate_from_CI(
             self.B_list[-self.NITER_cd:, ], thresh_low)
         return(beta_est)
-
 
 
 def main():
