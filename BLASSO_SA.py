@@ -9,7 +9,7 @@ import warnings
 
 
 class BLASSO_SA:
-    def __init__(self, X, Y, LAMBDA, BURNIN, NITER, NITER_cd, T_0=1, T_n=0.01, thresh_low=0.2, gig_seed=1423):
+    def __init__(self, X, Y, LAMBDA, BURNIN, NITER, NITER_cd, sigma2=1, T_0=1, T_n=0.01, thresh_low=0.2, gig_seed=1423):
         """Initialize the settings for the sampler.
 
         Arguments:
@@ -67,7 +67,10 @@ class BLASSO_SA:
 
         # TODO proper initialization
         self.beta = np.ones(self.p)
-        self.sigma2 = np.var(self.Y)
+        if(sigma2>0):
+            self.sigma2=sigma2
+        else:
+            self.sigma2 = np.var(self.Y)
 
         self.did_run = False
 
@@ -164,6 +167,8 @@ class BLASSO_SA:
         X_gram = self.X.T@self.X
         X_Y = self.X.T@self.Y
 
+        sigma2 = np.mean(self.sig2_list[:self.BURNIN])
+
         # run sampler
         for m in range(self.NITER):
             # for the last NITER_cd iterations, leave the temperature fixed
@@ -172,8 +177,8 @@ class BLASSO_SA:
 
             T_inv = self._draw_T_inv(beta, sigma2, self.LAMBDA, T)
 
-            sigma2 = self._draw_sigma2(
-                self.Y, self.X, beta, T_inv, self.n, self.p, T)
+            # sigma2 = self._draw_sigma2(
+            #     self.Y, self.X, beta, T_inv, self.n, self.p, T)
 
             beta = self._draw_beta(
                 self.Y, self.X, X_gram, X_Y, T_inv, sigma2, T)
